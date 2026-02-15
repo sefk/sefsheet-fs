@@ -10,7 +10,7 @@ const CELL_WIDTH = 120;
 const CELL_HEIGHT = 28;
 
 export function Grid() {
-  const { rows, cols, dispatch, selection, selectedRows, selectedCols, isSheetSelected } = useSheet();
+  const { rows, cols, dispatch, selection, selectedRows, selectedCols, isSheetSelected, activeCell, isEditing } = useSheet();
   const [isSelecting, setIsSelecting] = useState(false);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
@@ -68,6 +68,22 @@ export function Grid() {
     dispatch({ type: 'SELECT_COL', payload: col });
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!activeCell || isEditing) return;
+
+    if (e.key === 'F2' || e.key === 'Enter') {
+        e.preventDefault();
+        dispatch({ type: 'START_EDITING' });
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        dispatch({type: 'UPDATE_CELL_VALUE', payload: {...activeCell, value: ''}})
+    } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        dispatch({type: 'UPDATE_CELL_VALUE', payload: {...activeCell, value: e.key}})
+        dispatch({ type: 'START_EDITING' });
+    }
+  };
+
   return (
     <div
       ref={gridContainerRef}
@@ -76,6 +92,7 @@ export function Grid() {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onKeyDown={handleKeyDown}
       tabIndex={0}
     >
       <div 

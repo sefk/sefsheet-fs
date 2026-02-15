@@ -25,7 +25,6 @@ export function Cell({ row, col }: CellProps) {
   useEffect(() => {
     if (isActive && isEditing) {
       inputRef.current?.focus();
-      inputRef.current?.select();
     }
   }, [isActive, isEditing]);
 
@@ -47,25 +46,6 @@ export function Cell({ row, col }: CellProps) {
   
   const handleDoubleClick = () => {
     dispatch({ type: 'START_EDITING' });
-  };
-  
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (isActive && !isEditing) {
-        if (e.key === 'F2') {
-            e.preventDefault();
-            dispatch({ type: 'START_EDITING' });
-        } else if (e.key === 'Backspace' || e.key === 'Delete') {
-            e.preventDefault();
-            dispatch({type: 'UPDATE_CELL_VALUE', payload: {row, col, value: ''}})
-        } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
-            e.preventDefault();
-            setLocalValue(e.key);
-            dispatch({ type: 'START_EDITING' });
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            dispatch({ type: 'START_EDITING' });
-        }
-    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,7 +103,6 @@ export function Cell({ row, col }: CellProps) {
       )}
       style={style}
       onDoubleClick={handleDoubleClick}
-      onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
       {isActive && isEditing ? (
