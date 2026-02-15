@@ -49,10 +49,11 @@ export function Cell({ row, col }: CellProps) {
   };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (isActive) {
+    if (isActive && !isEditing) {
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            setLocalValue(e.key);
+            dispatch({ type: 'UPDATE_CELL_VALUE', payload: { row, col, value: e.key } });
             dispatch({ type: 'START_EDITING' });
+            e.preventDefault();
         } else if (e.key === 'F2' || (e.key === 'Enter' && e.shiftKey)) {
              dispatch({ type: 'START_EDITING' });
         } else if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -72,6 +73,7 @@ export function Cell({ row, col }: CellProps) {
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      dispatch({ type: 'UPDATE_CELL_VALUE', payload: { row, col, value: localValue } });
       dispatch({ type: 'STOP_EDITING' });
       const nextCell = { row: row + 1, col };
       dispatch({ type: 'SET_ACTIVE_CELL', payload: nextCell });
@@ -80,6 +82,7 @@ export function Cell({ row, col }: CellProps) {
       dispatch({ type: 'STOP_EDITING' });
     } else if (e.key === 'Tab') {
         e.preventDefault();
+        dispatch({ type: 'UPDATE_CELL_VALUE', payload: { row, col, value: localValue } });
         dispatch({ type: 'STOP_EDITING' });
         const nextCell = {row, col: col + 1};
         dispatch({type: 'SET_ACTIVE_CELL', payload: nextCell});
