@@ -35,7 +35,9 @@ export type Action =
   | { type: 'SELECT_ALL' }
   | { type: 'SELECT_ROW'; payload: number }
   | { type: 'SELECT_COL'; payload: number }
-  | { type: 'CLEAR_SELECTION_FORMATTING' };
+  | { type: 'CLEAR_SELECTION_FORMATTING' }
+  | { type: 'RESIZE_COL'; payload: { col: number; width: number } }
+  | { type: 'RESIZE_ROW'; payload: { row: number; height: number } };
 
 
 export interface SheetState {
@@ -46,6 +48,8 @@ export interface SheetState {
   isSheetSelected: boolean;
   selectedRows: Set<number>;
   selectedCols: Set<number>;
+  colWidths: number[];
+  rowHeights: number[];
 }
 
 export interface SheetContextType extends SheetState {

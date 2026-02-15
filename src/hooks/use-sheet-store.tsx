@@ -16,13 +16,15 @@ const defaultCellStyle: CellStyle = {
   backgroundColor: '#FFFFFF',
 };
 
+const DEFAULT_COL_WIDTH = 120;
+const DEFAULT_ROW_HEIGHT = 28;
+
 function getInitialData(rows: number, cols: number): { [key: string]: CellData } {
   const data: { [key: string]: CellData } = {};
   return data;
 }
 
-const initialState: SheetState = {
-  data: {},
+const initialState: Omit<SheetState, 'data' | 'colWidths' | 'rowHeights'> = {
   activeCell: { row: 0, col: 0 },
   selection: { start: { row: 0, col: 0 }, end: { row: 0, col: 0 } },
   isEditing: false,
@@ -197,6 +199,20 @@ function sheetReducer(state: SheetState, action: Action, rows: number, cols: num
       return { ...state, data: newData };
     }
     
+    case 'RESIZE_COL': {
+        const { col, width } = action.payload;
+        const newColWidths = [...state.colWidths];
+        newColWidths[col] = Math.max(30, width);
+        return { ...state, colWidths: newColWidths };
+    }
+
+    case 'RESIZE_ROW': {
+        const { row, height } = action.payload;
+        const newRowHeights = [...state.rowHeights];
+        newRowHeights[row] = Math.max(20, height);
+        return { ...state, rowHeights: newRowHeights };
+    }
+
     default:
       return state;
   }
@@ -208,6 +224,8 @@ export function SheetProvider({ children, rows, cols }: { children: React.ReactN
   const [state, dispatch] = useReducer(reducerWithSheetSize, {
     ...initialState,
     data: getInitialData(rows, cols),
+    colWidths: Array(cols).fill(DEFAULT_COL_WIDTH),
+    rowHeights: Array(rows).fill(DEFAULT_ROW_HEIGHT),
   });
 
   const contextValue = useMemo(() => ({

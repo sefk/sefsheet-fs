@@ -6,13 +6,82 @@ import { Cell } from '@/components/Cell';
 import { colToLetter } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
-const CELL_WIDTH = 120;
-const CELL_HEIGHT = 28;
-
 export function Grid() {
-  const { rows, cols, dispatch, selection, selectedRows, selectedCols, isSheetSelected, activeCell, isEditing } = useSheet();
+  const { rows, cols, dispatch, selection, selectedRows, selectedCols, isSheetSelected, activeCell, isEditing, colWidths, rowHeights } = useSheet();
   const [isSelecting, setIsSelecting] = useState(false);
   const gridContainerRef = useRef<HTMLDivElement>(null);
+  const [resizing, setResizing] = useState<{ type: 'col' | 'row', index: number, startPos: number, startSize: number } | null>(null);
+
+  const handleResizeStart = (e: React.MouseEvent, type: 'col' | 'row', index: number) => {
+    e.stopPropagation();
+    document.body.style.cursor = type === 'col' ? 'col-resize' : 'row-resize';
+    if (type === 'col') {
+      setResizing({ type, index, startPos: e.clientX, startSize: colWidths[index] });
+    } else {
+      setResizing({ type, index, startPos: e.clientY, startSize: rowHeights[index] });
+    }
+  };
+
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!resizing) return;
+      if (resizing.type === 'col') {
+        const newWidth = resizing.startSize + e.clientX - resizing.startPos;
+        dispatch({ type: 'RESIZE_COL', payload: { col: resizing.index, width: newWidth } });
+      } else {
+        const newHeight = resizing.startSize + e.clientY - resizing.startPos;
+        dispatch({ type: 'RESIZE_ROW', payload: { row: resizing.index, height: newHeight } });
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      setResizing(null);
+      document.body.style.cursor = '';
+    };
+
+    if (resizing) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [resizing, dispatch]);
+
+  const getCellFromEvent = (e: React.MouseEvent<HTMLDivElement>): { row: number; col: number } | null => {
+    if (!gridContainerRef.current) return null;
+    const rect = gridContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left - 48; // 48 is row header width
+    const y = e.clientY - rect.top - 28; // 28 is col header height
+
+    if (x < 0 || y < 0) return null;
+
+    let col = -1;
+    let currentX = 0;
+    for (let i = 0; i < cols; i++) {
+        currentX += colWidths[i];
+        if (x < currentX) {
+            col = i;
+            break;
+        }
+    }
+
+    let row = -1;
+    let currentY = 0;
+    for (let i = 0; i < rows; i++) {
+        currentY += rowHeights[i];
+        if (y < currentY) {
+            row = i;
+            break;
+        }
+    }
+    
+    if (row < 0 || row >= rows || col < 0 || col >= cols) return null;
+
+    return { row, col };
+  }
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (
@@ -23,11 +92,9 @@ export function Grid() {
     }
     
     if (e.target instanceof HTMLElement && e.target.closest('[data-role="grid"]')) {
-      const rect = gridContainerRef.current!.getBoundingClientRect();
-      const col = Math.floor((e.clientX - rect.left - 48) / CELL_WIDTH);
-      const row = Math.floor((e.clientY - rect.top - 28) / CELL_HEIGHT);
-      
-      if (row >= 0 && col >= 0 && row < rows && col < cols) {
+      const cellCoords = getCellFromEvent(e);
+      if (cellCoords) {
+        const { row, col } = cellCoords;
         setIsSelecting(true);
         if (e.shiftKey && selection) {
           dispatch({ type: 'SET_SELECTION', payload: { start: selection.start, end: { row, col } } });
@@ -39,12 +106,11 @@ export function Grid() {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (resizing) return;
     if (isSelecting) {
-      const rect = gridContainerRef.current!.getBoundingClientRect();
-      const col = Math.floor((e.clientX - rect.left - 48) / CELL_WIDTH);
-      const row = Math.floor((e.clientY - rect.top - 28) / CELL_HEIGHT);
-      
-      if (row >= 0 && col >= 0 && row < rows && col < cols) {
+      const cellCoords = getCellFromEvent(e);
+      if (cellCoords) {
+        const { row, col } = cellCoords;
         if (selection) {
           dispatch({ type: 'SET_SELECTION', payload: { start: selection.start, end: { row, col } } });
         }
@@ -84,6 +150,11 @@ export function Grid() {
     }
   };
 
+  const gridTemplateColumns = `48px ${colWidths.map(w => `${w}px`).join(' ')}`;
+  const gridTemplateRows = `28px ${rowHeights.map(h => `${h}px`).join(' ')}`;
+  const totalWidth = 48 + colWidths.reduce((a, b) => a + b, 0);
+  const totalHeight = 28 + rowHeights.reduce((a, b) => a + b, 0);
+
   return (
     <div
       ref={gridContainerRef}
@@ -99,10 +170,10 @@ export function Grid() {
         data-role="grid"
         className="relative grid" 
         style={{
-          gridTemplateColumns: `48px repeat(${cols}, ${CELL_WIDTH}px)`,
-          gridTemplateRows: `28px repeat(${rows}, ${CELL_HEIGHT}px)`,
-          width: `${cols * CELL_WIDTH + 48}px`,
-          height: `${rows * CELL_HEIGHT + 28}px`,
+          gridTemplateColumns,
+          gridTemplateRows,
+          width: `${totalWidth}px`,
+          height: `${totalHeight}px`,
         }}
       >
         {/* Corner */}
@@ -122,10 +193,14 @@ export function Grid() {
                 'sticky top-0 z-20 flex items-center justify-center bg-secondary border-b border-r text-muted-foreground text-xs font-medium cursor-pointer transition-colors',
                 selectedCols.has(colIndex) && 'bg-accent/50'
             )}
-            style={{ gridColumn: colIndex + 2, gridRow: 1 }}
+            style={{ gridColumn: colIndex + 2, gridRow: 1, position: 'relative' }}
             onClick={() => handleSelectCol(colIndex)}
           >
             {colToLetter(colIndex)}
+            <div
+              className="absolute top-0 right-[-2px] h-full w-1 cursor-col-resize hover:bg-primary z-10"
+              onMouseDown={(e) => handleResizeStart(e, 'col', colIndex)}
+            />
           </div>
         ))}
 
@@ -137,10 +212,14 @@ export function Grid() {
                 'sticky left-0 z-20 flex items-center justify-center bg-secondary border-b border-r text-muted-foreground text-xs font-medium cursor-pointer transition-colors',
                 selectedRows.has(rowIndex) && 'bg-accent/50'
             )}
-            style={{ gridColumn: 1, gridRow: rowIndex + 2 }}
+            style={{ gridColumn: 1, gridRow: rowIndex + 2, position: 'relative' }}
             onClick={() => handleSelectRow(rowIndex)}
           >
             {rowIndex + 1}
+            <div
+                className="absolute bottom-[-2px] left-0 w-full h-1 cursor-row-resize hover:bg-primary z-10"
+                onMouseDown={(e) => handleResizeStart(e, 'row', rowIndex)}
+            />
           </div>
         ))}
 
