@@ -1,7 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useReducer, useMemo } from 'react';
-import type { SheetState, SheetContextType, Action, CellData, CellStyle } from '@/lib/types';
+import type { SheetState, SheetContextType, Action, CellData, CellStyle, SheetData } from '@/lib/types';
+import { evaluateFormula } from '@/lib/formula-parser';
 
 const SheetContext = createContext<SheetContextType | undefined>(undefined);
 
@@ -30,7 +31,40 @@ const initialState: SheetState = {
   selectedCols: new Set(),
 };
 
-function sheetReducer(state: SheetState, action: Action): SheetState {
+function recalculateSheet(data: SheetData, rows: number, cols: number): SheetData {
+  const newData = JSON.parse(JSON.stringify(data));
+  let changed;
+  const maxIterations = 10;
+  let iteration = 0;
+
+  do {
+    changed = false;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const key = `${r}-${c}`;
+        if (newData[key]?.formula) {
+          const formula = newData[key].formula!;
+          const oldValue = newData[key].value;
+          const newValue = evaluateFormula(formula, newData);
+          if (newValue !== oldValue) {
+            newData[key].value = newValue;
+            changed = true;
+          }
+        }
+      }
+    }
+    iteration++;
+  } while (changed && iteration < maxIterations);
+
+  if (iteration === maxIterations) {
+    console.warn("Recalculation limit reached, possible circular dependency.");
+  }
+
+  return newData;
+}
+
+
+function sheetReducer(state: SheetState, action: Action, rows: number, cols: number): SheetState {
   switch (action.type) {
     case 'SET_ACTIVE_CELL':
       if (!action.payload) return { ...state, activeCell: null, selection: null };
@@ -54,11 +88,16 @@ function sheetReducer(state: SheetState, action: Action): SheetState {
       const { row, col, value } = action.payload;
       const key = `${row}-${col}`;
       const newData = { ...state.data };
-      newData[key] = {
-        ...newData[key] || { style: { ...defaultCellStyle } },
-        value,
-      };
-      return { ...state, data: newData };
+      const currentCell = newData[key] || { style: { ...defaultCellStyle } };
+
+      if (value.startsWith('=')) {
+        newData[key] = { ...currentCell, formula: value };
+      } else {
+        newData[key] = { ...currentCell, value, formula: undefined };
+      }
+      
+      const calculatedData = recalculateSheet(newData, rows, cols);
+      return { ...state, data: calculatedData };
     }
 
     case 'SET_SELECTION':
@@ -126,22 +165,20 @@ function sheetReducer(state: SheetState, action: Action): SheetState {
       };
 
       if (state.isSheetSelected) {
-        // This is a placeholder for a full sheet selection.
-        // In a real app, you would define the full sheet range.
-        for (let r = 0; r < 100; r++) { // Assuming 100 rows
-          for (let c = 0; c < 26; c++) { // Assuming 26 cols
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
             applyStyle(r, c);
           }
         }
       } else if (state.selectedRows.size > 0) {
         state.selectedRows.forEach(row => {
-          for (let c = 0; c < 26; c++) { // Assuming 26 cols
+          for (let c = 0; c < cols; c++) {
             applyStyle(row, c);
           }
         });
       } else if (state.selectedCols.size > 0) {
         state.selectedCols.forEach(col => {
-          for (let r = 0; r < 100; r++) { // Assuming 100 rows
+          for (let r = 0; r < rows; r++) {
             applyStyle(r, col);
           }
         });
@@ -166,7 +203,9 @@ function sheetReducer(state: SheetState, action: Action): SheetState {
 }
 
 export function SheetProvider({ children, rows, cols }: { children: React.ReactNode; rows: number; cols: number }) {
-  const [state, dispatch] = useReducer(sheetReducer, {
+  const reducerWithSheetSize = (state: SheetState, action: Action) => sheetReducer(state, action, rows, cols);
+  
+  const [state, dispatch] = useReducer(reducerWithSheetSize, {
     ...initialState,
     data: getInitialData(rows, cols),
   });

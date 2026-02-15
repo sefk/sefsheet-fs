@@ -16,15 +16,16 @@ export function Cell({ row, col }: CellProps) {
   const isActive = activeCell?.row === row && activeCell?.col === col;
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [localValue, setLocalValue] = useState(cellData?.value || '');
+  const [localValue, setLocalValue] = useState(cellData?.formula || cellData?.value || '');
   
   useEffect(() => {
-    setLocalValue(cellData?.value || '');
-  }, [cellData?.value]);
+    setLocalValue(cellData?.formula || cellData?.value || '');
+  }, [cellData?.value, cellData?.formula]);
 
   useEffect(() => {
     if (isActive && isEditing) {
       inputRef.current?.focus();
+      inputRef.current?.select();
     }
   }, [isActive, isEditing]);
 
@@ -50,14 +51,19 @@ export function Cell({ row, col }: CellProps) {
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (isActive && !isEditing) {
-        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            dispatch({ type: 'UPDATE_CELL_VALUE', payload: { row, col, value: e.key } });
-            dispatch({ type: 'START_EDITING' });
+        if (e.key === 'F2') {
             e.preventDefault();
-        } else if (e.key === 'F2' || (e.key === 'Enter' && e.shiftKey)) {
-             dispatch({ type: 'START_EDITING' });
+            dispatch({ type: 'START_EDITING' });
         } else if (e.key === 'Backspace' || e.key === 'Delete') {
+            e.preventDefault();
             dispatch({type: 'UPDATE_CELL_VALUE', payload: {row, col, value: ''}})
+        } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            setLocalValue(e.key);
+            dispatch({ type: 'START_EDITING' });
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            dispatch({ type: 'START_EDITING' });
         }
     }
   };
@@ -67,25 +73,29 @@ export function Cell({ row, col }: CellProps) {
   };
   
   const handleInputBlur = () => {
-    dispatch({ type: 'STOP_EDITING' });
     dispatch({ type: 'UPDATE_CELL_VALUE', payload: { row, col, value: localValue } });
+    dispatch({ type: 'STOP_EDITING' });
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       dispatch({ type: 'UPDATE_CELL_VALUE', payload: { row, col, value: localValue } });
       dispatch({ type: 'STOP_EDITING' });
       const nextCell = { row: row + 1, col };
       dispatch({ type: 'SET_ACTIVE_CELL', payload: nextCell });
     } else if (e.key === 'Escape') {
-      setLocalValue(cellData?.value || '');
+      e.preventDefault();
+      setLocalValue(cellData?.formula || cellData?.value || '');
       dispatch({ type: 'STOP_EDITING' });
     } else if (e.key === 'Tab') {
         e.preventDefault();
         dispatch({ type: 'UPDATE_CELL_VALUE', payload: { row, col, value: localValue } });
         dispatch({ type: 'STOP_EDITING' });
-        const nextCell = {row, col: col + 1};
-        dispatch({type: 'SET_ACTIVE_CELL', payload: nextCell});
+        const nextCol = e.shiftKey ? col - 1 : col + 1;
+        if (nextCol >= 0) {
+            dispatch({type: 'SET_ACTIVE_CELL', payload: {row, col: nextCol}});
+        }
     }
   };
   

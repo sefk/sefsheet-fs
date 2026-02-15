@@ -12,6 +12,7 @@ export interface CellStyle {
 
 export interface CellData {
   value: string;
+  formula?: string;
   style: CellStyle;
 }
 
