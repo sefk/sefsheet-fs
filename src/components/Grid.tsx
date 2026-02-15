@@ -15,6 +15,13 @@ export function Grid() {
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (
+      gridContainerRef.current?.contains(document.activeElement) &&
+      document.activeElement?.tagName === 'INPUT'
+    ) {
+      (document.activeElement as HTMLElement).blur();
+    }
+    
     if (e.target instanceof HTMLElement && e.target.closest('[data-role="grid"]')) {
       const rect = gridContainerRef.current!.getBoundingClientRect();
       const col = Math.floor((e.clientX - rect.left - 48) / CELL_WIDTH);
