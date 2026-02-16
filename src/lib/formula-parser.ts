@@ -37,7 +37,7 @@ function getValue(data: SheetData, row: number, col: number): number {
 }
 
 function parseSum(range: string, data: SheetData): number {
-    const [startRef, endRef] = range.split(':');
+    const [startRef, endRef] = range.split(':').map(r => r.trim());
     const start = cellRefToCoords(startRef);
     const end = cellRefToCoords(endRef);
 
@@ -57,6 +57,37 @@ function parseSum(range: string, data: SheetData): number {
     return sum;
 }
 
+function parseAverage(range: string, data: SheetData): number {
+    const [startRef, endRef] = range.split(':').map(r => r.trim());
+    const start = cellRefToCoords(startRef);
+    const end = cellRefToCoords(endRef);
+
+    if (!start || !end) return 0;
+
+    let sum = 0;
+    let count = 0;
+    const minRow = Math.min(start.row, end.row);
+    const maxRow = Math.max(start.row, end.row);
+    const minCol = Math.min(start.col, end.col);
+    const maxCol = Math.max(start.col, end.col);
+
+    for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+            const key = `${r}-${c}`;
+            const cell = data[key];
+            if (cell && cell.value) {
+                const num = parseFloat(cell.value);
+                if (!isNaN(num)) {
+                    sum += num;
+                    count++;
+                }
+            }
+        }
+    }
+    return count > 0 ? sum / count : 0;
+}
+
+
 export function evaluateFormula(formula: string, data: SheetData): string {
   if (!formula || !formula.startsWith('=')) {
     return formula;
@@ -67,6 +98,11 @@ export function evaluateFormula(formula: string, data: SheetData): string {
   // Handle SUM() function
   expression = expression.replace(/SUM\(([^)]+)\)/gi, (match, range) => {
     return String(parseSum(range, data));
+  });
+
+  // Handle AVERAGE() function
+  expression = expression.replace(/AVERAGE\(([^)]+)\)/gi, (match, range) => {
+    return String(parseAverage(range, data));
   });
 
   // Replace cell references with their values
